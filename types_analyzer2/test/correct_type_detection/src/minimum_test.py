@@ -12,19 +12,15 @@ rlist = [1.1, 1.2]  # expects: list<float>
 nlist = [1, 2.5]  # expects: list<_numeric>
 vlist = [1, None]  # expects: list
 
-# Tuples assignment and values reuse
-a, b = 1, 2  # expects: a: int, b: int
-a = i  # expects: int
-b = r  # expects: float
-a, b = r, i  # expects: a: float, b: int
+# Tuples assignment
+x, y = 1, 2  # expects: x: int, y: int
+xx, yy = r, i  # expects: xx: float, yy: int
 
 # Arithmetics operations
-a = 1 + 2  # expects: int
-b = 1 + r  # expects: float
-c = s * 2  # expects: str
+i_plus_i = 1 + 2  # expects: int
+i_plus_r = 1 + r  # expects: float
+s_mul_i = s * 2  # expects: str
 
 # Value methods call
 sl = s.lower()  # expects: str
 sil = s.islower()  # expects: bool
-
-
