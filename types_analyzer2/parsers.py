@@ -12,13 +12,16 @@ from .special_pseudo_types import *
 from .special_match_types import *
 from .special_callable_types import *
 
+
 def get_resource_file(name: str):
     my_dirname = os.path.dirname(__file__)
-    return open(my_dirname+os.pathsep+name.replace("/",os.pathsep))
+    return open(my_dirname + os.pathsep + name.replace("/", os.pathsep))
+
 
 def __get_supertype_names(clazz):
     result = []
     classtree = inspect.getclasstree([clazz])
+
     def get_supertypes_r(node):
         if isinstance(node, list) or isinstance(node, tuple):
             for child in node:
@@ -28,6 +31,7 @@ def __get_supertype_names(clazz):
             self_name = clazz.__name__
             if name != self_name and name not in result:
                 result.append(name)
+
     get_supertypes_r(classtree)
     return result
 
@@ -36,10 +40,9 @@ def __remove_extra_prefix(type_name: str):
     from .headers import base_types_0
     prefix_to_remove = base_types_0.__name__
     if type_name.startswith(prefix_to_remove):
-        return type_name[len(prefix_to_remove)+1]
+        return type_name[len(prefix_to_remove) + 1]
     else:
         return type_name
-
 
 
 def __type_from_annotation(annotation, table):
@@ -75,25 +78,25 @@ def __type_from_annotation(annotation, table):
         type_name = None
         result = None
     if not result and type_name is not None:
-        if type_name==SelfType.name:
+        if type_name == SelfType.name:
             result = SelfType()
-        elif type_name==KeyType.name:
+        elif type_name == KeyType.name:
             result = KeyType()
-        elif type_name==ValueType.name:
+        elif type_name == ValueType.name:
             result = ValueType()
-        elif type_name==AnyType.name:
+        elif type_name == AnyType.name:
             result = AnyType()
-        elif type_name==AnyOf.name:
+        elif type_name == AnyOf.name:
             result = AnyOf([__type_from_annotation(x, table) for x in annotation.variants])
-        elif type_name==NthArgType.name:
+        elif type_name == NthArgType.name:
             result = NthArgType(annotation.arg_number)
         elif type_name == NthArgKeyType.name:
             result = NthArgKeyType(annotation.arg_number)
-        elif type_name==NthArgValueType.name:
+        elif type_name == NthArgValueType.name:
             result = NthArgValueType(annotation.arg_number)
-        elif type_name==NthArgCallableReturnType.name:
+        elif type_name == NthArgCallableReturnType.name:
             result = NthArgCallableReturnType(annotation.arg_number)
-        elif type_name==NthArgMatch.name:
+        elif type_name == NthArgMatch.name:
             match_table = dict()
             source_match_table = annotation.match_table
             assert isinstance(source_match_table, dict)
@@ -102,13 +105,13 @@ def __type_from_annotation(annotation, table):
                 to_type = __type_from_annotation(val, table)
                 match_table[from_type] = to_type
             result = NthArgMatch(annotation.arg_number, match_table)
-        elif type_name==TypedCallable.name:
+        elif type_name == TypedCallable.name:
             return_type = annotation.return_type
             arg_types = annotation.arg_types
             rtype = __type_from_annotation(return_type, table)
             atypes = [__type_from_annotation(x, table) for x in arg_types]
             result = TypedCallable(rtype, atypes)
-        elif type_name==MatchAfter.name:
+        elif type_name == MatchAfter.name:
             arg_numbers = annotation.arg_numbers_required
             predicate = __type_from_annotation(annotation.predicate, table)
             result = MatchAfter(arg_numbers, predicate)
@@ -118,10 +121,10 @@ def __type_from_annotation(annotation, table):
                 assert hasattr(annotation, "evaluate")
                 result = ScriptableMatch(annotation)
 
-
     if not result:
         result = table.lookup_by_name("object")  ## The most generic case
     return result
+
 
 def __parse_signature(name, types_table, signature):
     assert isinstance(name, str)
@@ -130,17 +133,18 @@ def __parse_signature(name, types_table, signature):
     arguments = []
     for param_name in signature.parameters:
         param = signature.parameters[param_name]
-        if param_name=="self":
+        if param_name == "self":
             argument_type = SelfType()
         else:
             assert isinstance(param, inspect.Parameter)
             annotation = param.annotation
             argument_type = __type_from_annotation(annotation, types_table)
         arguments.append(ArgumentDef(param, argument_type))
-    assert signature.return_annotation!=inspect.Signature.empty
+    assert signature.return_annotation != inspect.Signature.empty
     return_annotation = signature.return_annotation
     return_type = __type_from_annotation(return_annotation, types_table)
     return MethodDef(name, arguments, return_type)
+
 
 def __add_supertype_recursively(target_list, supertypes):
     assert isinstance(target_list, list)
@@ -151,6 +155,7 @@ def __add_supertype_recursively(target_list, supertypes):
     for supertype in supertypes:
         for parent in supertype.supertypes:
             __add_supertype_recursively(target_list, [parent])
+
 
 def parse_module_classes(types_table, methods_table, source_module, qn_prefix: str):
     assert isinstance(types_table, typetable.TypesTable)
@@ -181,7 +186,7 @@ def parse_module_classes(types_table, methods_table, source_module, qn_prefix: s
     # ensure 'object' is the last entry in supertypes list
     for table_entry in types_table.types:
         assert isinstance(table_entry, TypeDef)
-        if table_entry.name=="object":
+        if table_entry.name == "object":
             continue
         assert len(table_entry.supertypes) >= 1
         obj_type = None
@@ -194,7 +199,6 @@ def parse_module_classes(types_table, methods_table, source_module, qn_prefix: s
         assert obj_type is not None
         table_entry.supertypes.append(obj_type)
 
-
     # parse methods annotations
     for class_name, source_entry in source_items:
         table_entry = types_table.lookup_by_name(qn_prefix + class_name)
@@ -206,10 +210,10 @@ def parse_module_classes(types_table, methods_table, source_module, qn_prefix: s
             qualname = function.__qualname__
             method_name = function.__name__
             assert isinstance(qualname, str)
-            if qualname.startswith(class_name+"."):
+            if qualname.startswith(class_name + "."):
                 signature = inspect.signature(function)
                 entry_method = __parse_signature(method_name, types_table, signature)
-                methods_table.append(qn_prefix+class_name, entry_method)
+                methods_table.append(qn_prefix + class_name, entry_method)
 
     # set exact key types and value types
     for class_name, source_entry in source_items:
@@ -219,13 +223,13 @@ def parse_module_classes(types_table, methods_table, source_module, qn_prefix: s
         assert isinstance(table_entry, TypeDef)
         type_props = inspect.getmembers(source_entry, inspect.isclass)
         for name, clazz in type_props:
-            if name=="value_type":
+            if name == "value_type":
                 table_entry.valuetype = types_table.lookup_by_name(qn_prefix + clazz.__name__)
-            elif name=="key_type":
+            elif name == "key_type":
                 table_entry.keytype = types_table.lookup_by_name(qn_prefix + clazz.__name__)
         value_props = inspect.getmembers(source_entry)
         for name, value in value_props:
-            if name=="parametrizable":
+            if name == "parametrizable":
                 if isinstance(value, bool):
                     table_entry.parametrizable = value
 
@@ -243,7 +247,6 @@ def parse_module_classes(types_table, methods_table, source_module, qn_prefix: s
                         entry.valuetype = super.valuetype
 
 
-
 def parse_module_functions(types_table, methods_table, source_module, qn_prefix: str):
     assert isinstance(types_table, typetable.TypesTable)
     assert isinstance(methods_table, functable.MethodsTable)
@@ -254,11 +257,14 @@ def parse_module_functions(types_table, methods_table, source_module, qn_prefix:
         methods_table.append(qn_prefix, method_def)
 
 
-def parse_ast_annotation_name(node: ast.Name, functions_table, types_table, symbols_table: symtable.SymbolTable) -> TypeDef:
+def parse_ast_annotation_name(node: ast.Name, functions_table, types_table,
+                              symbols_table: symtable.SymbolTable) -> TypeDef:
     type_name = node.id
     return types_table.lookup_by_name(type_name)
 
-def parse_ast_function_def(node: ast.FunctionDef, functions_table, types_table, symbols_table: symtable.SymbolTable) -> MethodDef:
+
+def parse_ast_function_def(node: ast.FunctionDef, functions_table, types_table,
+                           symbols_table: symtable.SymbolTable) -> MethodDef:
     name = node.name
     node_args = node.args
     arguments = []
@@ -281,4 +287,3 @@ def parse_ast_function_def(node: ast.FunctionDef, functions_table, types_table, 
         rtype = parse_ast_annotation_name(returns, functions_table, types_table, symbols_table)
     method = MethodDef(name, arguments, rtype)
     return method
-

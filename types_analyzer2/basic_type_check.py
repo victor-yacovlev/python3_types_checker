@@ -9,19 +9,23 @@ from .type_analizer_errors import *
 from .funcdefs import *
 from . import parsers
 
+
 class TemporarySymbolTable:
     def __init__(self, parent):
         self.parent_table = parent
         self.values = {}
         self.return_type = None
+
     def lookup(self, name):
         if name in self.values:
             return self.values[name]
         else:
             return self.parent_table.lookup(name)
 
+
 class Visitor(ast.NodeVisitor):
-    def __init__(self, symtable: symtable.SymbolTable, typetable: typetable.TypesTable, functable: functable.MethodsTable):
+    def __init__(self, symtable: symtable.SymbolTable, typetable: typetable.TypesTable,
+                 functable: functable.MethodsTable):
         super().__init__()
         self.symtable = [symtable]
         self.typetable = typetable
@@ -74,10 +78,10 @@ class Visitor(ast.NodeVisitor):
         result = []
         if isinstance(node, ast.BoolOp):
             op = node.op
-            if isinstance(op, ast.Or ):
+            if isinstance(op, ast.Or):
                 for x in node.values:
                     result += self.resolve_assert_statements(x)
-        elif isinstance(node, ast.Call) and node.func.id=="isinstance":
+        elif isinstance(node, ast.Call) and node.func.id == "isinstance":
             result.append(node)
         return result
 
@@ -103,7 +107,6 @@ class Visitor(ast.NodeVisitor):
             symbol.lineno = node.lineno
             symbol.col_offset = node.col_offset
             symbol.typedef = value
-
 
     def visit_FunctionDef(self, node):
         self.push_symbol_table(node.name)
@@ -143,12 +146,12 @@ class Visitor(ast.NodeVisitor):
 
         elif isinstance(node, ast.List):
             item_types = [self.resolve_expression_type(x) for x in node.elts]
-            if len(item_types)==0:
+            if len(item_types) == 0:
                 result = self.typetable.lookup_by_name("list")
             else:
                 common_parent = self.typetable.find_common_type_parent(item_types)
                 assert isinstance(common_parent, TypeDef)
-                if common_parent.name!="object":
+                if common_parent.name != "object":
                     result = self.typetable.lookup_or_create_parametrized_list(common_parent, "list")
                 else:
                     result = self.typetable.lookup_by_name("list")
@@ -158,7 +161,7 @@ class Visitor(ast.NodeVisitor):
             item_key_types = [self.resolve_expression_type(x) for x in node.keys]
             item_val_types = [self.resolve_expression_type(x) for x in node.values]
             assert len(item_key_types) == len(item_val_types)
-            if len(item_key_types)==0:
+            if len(item_key_types) == 0:
                 result = self.typetable.lookup_by_name("dict")
             else:
                 common_key_parent = self.typetable.find_common_type_parent(item_key_types)
@@ -256,13 +259,14 @@ class Visitor(ast.NodeVisitor):
             methods = list(self.find_all_instance_methods(left_argument_type, op_py_name)) + \
                       list(self.find_all_instance_methods(right_argument_type, alt_op_py_name))
             if not methods:
-                raise UnsupportedOperandTypesCompileError(node.lineno, node.col_offset, node.op, left_argument_type, right_argument_type)
+                raise UnsupportedOperandTypesCompileError(node.lineno, node.col_offset, node.op, left_argument_type,
+                                                          right_argument_type)
 
             match_error = None
             ## Try to match found methods and select first matching one
             for method in methods:
                 assert isinstance(method, MethodDef)
-                if method.name==op_py_name:
+                if method.name == op_py_name:
                     instance_object = left_argument_type
                     args = [left_argument_type, right_argument_type]
                 else:
@@ -352,13 +356,12 @@ class Visitor(ast.NodeVisitor):
             ## TODO specialuze lambda typed callable from lambda body
             return lambda_type
 
-
-
     def assign_type_to_target(self, target, rvalue_type):
         assert isinstance(rvalue_type, TypeDef)
         if isinstance(target, ast.Tuple):
             if len(rvalue_type.tupleitems) != len(target.elts):
-                raise WrongTupleAssignmentCompileError(target.lineno, target.col_offset, len(target.elts), len(rvalue_type.tupleitems))
+                raise WrongTupleAssignmentCompileError(target.lineno, target.col_offset, len(target.elts),
+                                                       len(rvalue_type.tupleitems))
             for child, rvalue_entry in zip(target.elts, rvalue_type.tupleitems):
                 self.assign_type_to_target(child, rvalue_entry)
         elif isinstance(target, ast.Name):

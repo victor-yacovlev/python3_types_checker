@@ -3,8 +3,9 @@ import copy
 import functools
 import inspect
 
+
 class TypeDef:
-    def __init__(self, name, supertypes, keytype = None, valuetype = None, tupleitems = []):
+    def __init__(self, name, supertypes, keytype=None, valuetype=None, tupleitems=[]):
         assert isinstance(name, str) or name is None
         assert isinstance(supertypes, list)
         assert isinstance(keytype, TypeDef) or keytype is None
@@ -50,7 +51,7 @@ class TypeDef:
                 r = "(" + ", ".join([repr(x) for x in self.tupleitems]) + ")"
             elif "_sequence" == self.name:
                 if self.valuetype:
-                    r = "[ " + repr(self.valuetype) +" ]"
+                    r = "[ " + repr(self.valuetype) + " ]"
                 else:
                     r = "[]"
             elif "dict" == self.name:
@@ -71,36 +72,14 @@ class TypeDef:
     def __eq__(self, other):
         if not isinstance(other, TypeDef):
             return False
-        return repr(self)==repr(other)
+        return repr(self) == repr(other)
 
     def __hash__(self):
         r = repr(self)
         return hash(r)
-
-
-
-
-
-
-
-
 
     def match_method(self, method_name: str, arguments: [], raise_error=True):
         return self.methods_table.match_method(self, method_name, arguments, raise_error)
 
     def is_parametrizable(self):
         return self.parametrizable or any([x.is_parametrizable() for x in self.supertypes])
-
-
-
-
-
-
-
-
-
-
-
-
-
-

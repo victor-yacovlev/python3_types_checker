@@ -17,7 +17,6 @@ except ImportError:
     debug = print
 
 
-
 class MethodsTable:
     def __init__(self):
         self.methods = dict()
@@ -88,7 +87,7 @@ class MethodsTable:
                     del kwdict[arg_name]
                 elif len(args) > 0:
                     provided_arg = args.pop(0)
-                elif arg.signature.default!=inspect.Signature.empty:
+                elif arg.signature.default != inspect.Signature.empty:
                     pass  # do bind this parameter to actual list
                 else:
                     raise NoEnoughtArgumentsMatchError(method, provided_positional_args_count)
@@ -107,13 +106,11 @@ class MethodsTable:
             self.bind_object_to_placeholder(method, x.typedef)
         return result
 
-
     def __update_formal_arguments_by_name(self, method, used_args):
         for arg in used_args:
             for marg in method.arguments:
                 if marg.signature.name == arg.signature.name:
                     yield marg
-
 
     ## TODO move to separate .py file
     def match(self, method: MethodDef, args: list, types_table, kwdict, owner_class):
@@ -142,7 +139,8 @@ class MethodsTable:
                 reverse_match = getattr(method_arg, "reverse_match", False)
                 if reverse_match:  # in case if required type constructed after provided
                     required_type, provided_type = provided_type, required_type
-                    required_type = self.__match_typedef(method, provided_type, required_type, bound_args, types_table, owner_class, method)
+                    required_type = self.__match_typedef(method, provided_type, required_type, bound_args, types_table,
+                                                         owner_class, method)
                 if not type_can_be_matched(provided_type, required_type):
                     raise TypeMismatchMatchError(method, required_type, provided_type)
             else:
@@ -158,7 +156,8 @@ class MethodsTable:
         if method.return_type is None:
             ## If there is not any information on function return type, try to deduce it from
             ## function AST body
-            visitor = method.ast_visitor;  assert isinstance(visitor, basic_type_check.Visitor)
+            visitor = method.ast_visitor;
+            assert isinstance(visitor, basic_type_check.Visitor)
             node = method.ast_node
             visitor.begin_function_match(bound_args)
             visitor.visit_function_body(node)
@@ -166,7 +165,8 @@ class MethodsTable:
 
         else:
             ## If matched then here were no errors raised - return function return type
-            return_type = self.__match_typedef(method, method.return_type, method.return_type, bound_args, types_table, owner_class, method)
+            return_type = self.__match_typedef(method, method.return_type, method.return_type, bound_args, types_table,
+                                               owner_class, method)
         if isinstance(return_type, AnyOf):
             return_type = self.__simplify_anyof(return_type)
         return return_type
@@ -187,8 +187,8 @@ class MethodsTable:
                     ScriptableMatch, AnyType, MatchAfter
                 ]]):
             typedef.scope = callable
-        if typedef.keytype!=typedef: self.bind_object_to_placeholder(callable, typedef.keytype)
-        if typedef.valuetype!=typedef: self.bind_object_to_placeholder(callable, typedef.valuetype)
+        if typedef.keytype != typedef: self.bind_object_to_placeholder(callable, typedef.keytype)
+        if typedef.valuetype != typedef: self.bind_object_to_placeholder(callable, typedef.valuetype)
         if isinstance(typedef, MatchAfter):
             self.bind_object_to_placeholder(callable, typedef.predicate)
         for ti in typedef.tupleitems:
@@ -200,21 +200,22 @@ class MethodsTable:
 
     def __nth_arg(self, method, bound_args: dict, arg_no: int, types_table):
         for arg, val in bound_args.items():
-            if arg.arg_number==arg_no:
+            if arg.arg_number == arg_no:
                 assert isinstance(arg, ArgumentDef)
                 assert isinstance(val, TypeDef)
                 return arg, val
         assert isinstance(method, MethodDef)
-        arg = method.arguments[arg_no-1]
+        arg = method.arguments[arg_no - 1]
         assert isinstance(arg, ArgumentDef)
-        assert arg.signature.default!=inspect.Signature.empty
+        assert arg.signature.default != inspect.Signature.empty
         assert isinstance(types_table, typetable.TypesTable)
         return copy.copy(arg), arg.typedef
 
     def __nth_arg_vt(self, method, bound_args: dict, arg_no: int, types_table):
         a, nth_arg = self.__nth_arg(method, bound_args, arg_no, types_table)
         assert isinstance(nth_arg, TypeDef)
-        if nth_arg.valuetype: return a, nth_arg.valuetype
+        if nth_arg.valuetype:
+            return a, nth_arg.valuetype
         else:
             assert isinstance(types_table, typetable.TypesTable)
             return a, types_table.lookup_by_name("object")
@@ -238,7 +239,8 @@ class MethodsTable:
                 for req_arg_no in req_type.arg_numbers:
                     req_arg, req_val = self.__nth_arg(method, bound_args, req_arg_no, types_table)
                     if not req_arg.resolved:
-                        req_arg.typedef = self.__match_typedef(method, req_arg.typedef, req_val, bound_args, types_table, owner_class, scope)
+                        req_arg.typedef = self.__match_typedef(method, req_arg.typedef, req_val, bound_args,
+                                                               types_table, owner_class, scope)
                         req_arg.resolved = True
                 req_type = req_type.predicate
                 reverse_match = True
@@ -252,7 +254,7 @@ class MethodsTable:
             result = owner_class
         elif isinstance(pattern, NthArgType):
             if isinstance(pattern.scope, TypedCallable):
-                result = scope.arg_types[pattern.arg_number-1].typedef
+                result = scope.arg_types[pattern.arg_number - 1].typedef
             else:
                 _, result = self.__nth_arg(method, bound_args, pattern.arg_number, types_table)
         elif isinstance(pattern, NthArgValueType):
@@ -307,20 +309,21 @@ class MethodsTable:
 
         if result.is_parametrizable() and result.keytype is None:
             result.keytype = self.__match_typedef(method, result.keytype, value.keytype, bound_args, types_table,
-                                                    owner_class, scope)
+                                                  owner_class, scope)
         if result.is_parametrizable() and result.valuetype != result and not isinstance(value, SpecialPseudoType):
             if isinstance(value, TypeDef):
                 vt = value.valuetype
-            elif isinstance(value, list) and len(value)>0:  # kwlist
+            elif isinstance(value, list) and len(value) > 0:  # kwlist
                 vt = types_table.find_common_type_parent(value)
             else:
                 vt = None
             if vt:
-                result.valuetype = self.__match_typedef(method, result.valuetype, vt, bound_args, types_table, owner_class, scope)
+                result.valuetype = self.__match_typedef(method, result.valuetype, vt, bound_args, types_table,
+                                                        owner_class, scope)
             else:
                 result.valuetype = None
         if isinstance(result, TypedCallable) and isinstance(value, TypedCallable):
-            if len(result.arg_types)==len(value.arg_types):
+            if len(result.arg_types) == len(value.arg_types):
                 result.arg_types = copy.copy(result.arg_types)
                 value.arg_types = copy.copy(value.arg_types)
                 for index, (p_arg, v_arg) in enumerate(zip(result.arg_types, value.arg_types)):
@@ -328,7 +331,8 @@ class MethodsTable:
                     assert isinstance(v_arg, ArgumentDef)
                     if isinstance(p_arg, AnyType):
                         p_arg = v_arg
-                    new_arg_type = self.__match_typedef(method, p_arg.typedef, v_arg.typedef, bound_args, types_table, owner_class, scope)
+                    new_arg_type = self.__match_typedef(method, p_arg.typedef, v_arg.typedef, bound_args, types_table,
+                                                        owner_class, scope)
                     if new_arg_type in v_arg.typedef.supertypes:
                         new_arg_type = v_arg.typedef
                     result.arg_types[index] = copy.copy(result.arg_types[index])
@@ -338,18 +342,21 @@ class MethodsTable:
             if isinstance(value, Lambda):
                 value.return_type = self.resolve_lambda_rtype(value)
             if isinstance(result.return_type, AnyType):
-                new_rtype = self.__match_typedef(method, value.return_type, value.return_type, None, types_table, None, value)
+                new_rtype = self.__match_typedef(method, value.return_type, value.return_type, None, types_table, None,
+                                                 value)
                 value.return_type = new_rtype
                 result.return_type = new_rtype
             elif isinstance(result.return_type, SpecialPseudoType):
-                new_rtype = self.__match_typedef(method, result.return_type, value.return_type, None, types_table, None, value)
+                new_rtype = self.__match_typedef(method, result.return_type, value.return_type, None, types_table, None,
+                                                 value)
                 value.return_type = new_rtype
                 result.return_type = new_rtype
             else:
                 if not type_can_be_matched(result.return_type, value.return_type):
                     if isinstance(value, Lambda):
                         raise LambdaArgumentReturnTypeMatchError(method, result.return_type, value.return_type)
-        if "tuple" == result.name and isinstance(value, TypeDef) and "tuple"==value.name and len(result.tupleitems)==len(value.tupleitems):
+        if "tuple" == result.name and isinstance(value, TypeDef) and "tuple" == value.name and len(
+                result.tupleitems) == len(value.tupleitems):
             result.tupleitems = copy.copy(result.tupleitems)
             value.tupleitems = copy.copy(result.tupleitems)
             for index, (p_arg, v_arg) in enumerate(zip(result.tupleitems, value.tupleitems)):
@@ -383,7 +390,3 @@ class MethodsTable:
             bound_args[arg] = arg.typedef
         return_type = visitor.visit_function_lambda(bound_args, node)
         return return_type
-
-
-
-

@@ -34,22 +34,22 @@ class TypesTable:
     def lookup_by_name(self, name: str):
         for typedef in self.types:
             assert isinstance(typedef, TypeDef)
-            if typedef.name==name:
+            if typedef.name == name:
                 return typedef
 
     def lookup_parametrized_list_by_value_type(self, item_type):
         for typedef in self.types:
             assert isinstance(typedef, TypeDef)
-            if typedef.name=="list":
-                if typedef.valuetype and typedef.valuetype==item_type:
+            if typedef.name == "list":
+                if typedef.valuetype and typedef.valuetype == item_type:
                     return typedef
 
     def lookup_parametrized_dict_by_key_type_and_value_type(self, key_type, value_type):
         for typedef in self.types:
             assert isinstance(typedef, TypeDef)
             if typedef.name == "dict":
-                if typedef.keytype and typedef.keytype==key_type:
-                    if typedef.valuetype and typedef.valuetype==value_type:
+                if typedef.keytype and typedef.keytype == key_type:
+                    if typedef.valuetype and typedef.valuetype == value_type:
                         return typedef
 
     def lookup_or_create_parametrized_list(self, item_type: TypeDef, base_type_name: str):
@@ -114,22 +114,21 @@ class TypesTable:
         new_type.parametrizable = True
         return self.store_parametrized_type(new_type)
 
-
     def store_parametrized_type(self, entry):  ## TODO implement compare operator
         assert isinstance(entry, TypeDef)
         for t in self.types:
             assert isinstance(t, TypeDef)
-            if t.name==entry.name and t.keytype==entry.keytype and t.valuetype==entry.valuetype:
-                tuple_match = len(t.tupleitems)==len(entry.tupleitems)
+            if t.name == entry.name and t.keytype == entry.keytype and t.valuetype == entry.valuetype:
+                tuple_match = len(t.tupleitems) == len(entry.tupleitems)
                 if tuple_match:
                     for i in range(0, len(t.tupleitems)):
                         t_t = t.tupleitems[i]
                         entry_t = entry.tupleitems[i]
-                        if t_t!=entry_t:
+                        if t_t != entry_t:
                             tuple_match = False
                             break
                 if tuple_match:
-                    return t ## The type already in table, so return it not to make extra copy
+                    return t  ## The type already in table, so return it not to make extra copy
         self.types.append(entry)
         return entry
 
@@ -188,13 +187,11 @@ class TypesTable:
         else:
             return common_types[0]
 
-
-
     def remove(self, entry: TypeDef):
         index_to_remove = None
         for index, item in enumerate(self.types):
-            if item==entry:
+            if item == entry:
                 index_to_remove = index
                 break
         if index_to_remove is not None:
-            self.types = self.types[:index_to_remove] + self.types[index_to_remove+1:]
+            self.types = self.types[:index_to_remove] + self.types[index_to_remove + 1:]
