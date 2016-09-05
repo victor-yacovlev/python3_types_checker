@@ -2,36 +2,42 @@ import ast
 
 
 class CompileError(BaseException):
-    def __init__(self, lineno: int, col_offset):
+    def __init__(self, node):
         super().__init__()
-        self.lineno = lineno
-        self.col_offset = col_offset
+        self.node = node
 
     def __repr__(self):
         if hasattr(self, "message"):
-            return "Error: '" + self.message + "' at " + str(self.lineno)
+            return "Error: '" + self.message + "' at " + str(self.node.lineno)
         else:
-            return "Error " + self.__class__.__name__ + " at " + str(self.lineno)
+            return "Error " + self.__class__.__name__ + " at " + str(self.node.lineno)
 
 
 class UnsupportedOperandTypesCompileError(CompileError):
-    def __init__(self, lineno, col_offset, op, left_type, right_type):
-        super().__init__(lineno, col_offset)
+    def __init__(self, node, op, left_type, right_type):
+        super().__init__(node)
         self.op = op
         self.left_type = left_type
         self.right_type = right_type
 
 
 class NoSuchMethodCompileError(CompileError):
-    def __init__(self, lineno, col_offset, instance_type, name):
-        super().__init__(lineno, col_offset)
+    def __init__(self, node, instance_type, name):
+        super().__init__(node)
         self.instance_type = instance_type
         self.name = name
 
 
 class ReturnFromWrongScopeCompileError(CompileError):
-    def __init__(self, lineno, col_offset):
-        super().__init__(lineno, col_offset)
+    def __init__(self, node):
+        super().__init__(node)
+
+
+class WrongIndexTypeCompileError(CompileError):
+    def __init__(self, node, container_type, provided_type):
+        super().__init__(node)
+        self.container_type = container_type
+        self.provided_type = provided_type
 
 
 class MatchError(BaseException):
@@ -40,8 +46,8 @@ class MatchError(BaseException):
 
 
 class IncompatibleBinaryOperationCompileError(CompileError):
-    def __init__(self, lineno: int, col_offset: int, left_type, right_type, op):
-        super().__init__(lineno, col_offset)
+    def __init__(self, node, left_type, right_type, op):
+        super().__init__(node)
         self.op = op
         self.left_type = left_type
         self.right_type = right_type
@@ -81,13 +87,14 @@ class TypeMismatchMatchError(MatchError):
 
         class TypeMismatchCompileError(CompileError):
             def __init__(self):
-                super().__init__(node.lineno, node.col_offset)
+                super().__init__(node)
                 self.required_type = repr(m.argument)
                 self.provided_type = repr(m.provided_type)
                 self.message = "Type mismatch (expected " + repr(m.argument) + ", but got " + repr(
                     m.provided_type) + ")"
 
         return TypeMismatchCompileError()
+
 
 
 class LambdaArgumentReturnTypeMatchError(MatchError):
@@ -101,7 +108,7 @@ class LambdaArgumentReturnTypeMatchError(MatchError):
 
         class LambdaArgumentReturnTypeCompileError(CompileError):
             def __init__(self):
-                super().__init__(node.lineno, node.col_offset)
+                super().__init__(node)
                 self.required_return_type = repr(m.required_return_type)
                 self.lambda_return_type = repr(m.lambda_return_type)
                 self.message = "Lambda return type mismatch " + \
@@ -111,15 +118,15 @@ class LambdaArgumentReturnTypeMatchError(MatchError):
 
 
 class NoEnoughtParametersCompileError(CompileError):
-    def __init__(self, lineno, col_offset, arg_name_not_provided):
-        super().__init__(lineno, col_offset)
+    def __init__(self, node, arg_name_not_provided):
+        super().__init__(node)
         assert isinstance(arg_name_not_provided, str)
         self.arg_name_not_provided = arg_name_not_provided
 
 
 class WrongTupleAssignmentCompileError(CompileError):
-    def __init__(self, lineno, col_offset, lvalue_count, rvalue_count):
-        super().__init__(lineno, col_offset)
+    def __init__(self, node, lvalue_count, rvalue_count):
+        super().__init__(node)
         self.lvalue_count = lvalue_count
         self.rvalue_count = rvalue_count
 
@@ -129,7 +136,7 @@ def transform_match_error_to_compile_error(match_error: MatchError, node):
         transform_func = match_error.to_compile_error
         return transform_func(node)
     else:
-        result = CompileError(node.lineno, node.col_offset)
+        result = CompileError(node)
         if hasattr(match_error, "message"):
             result.message = match_error.message
         else:

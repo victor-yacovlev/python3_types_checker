@@ -159,7 +159,7 @@ class MethodsTable:
             visitor = method.ast_visitor;
             assert isinstance(visitor, basic_type_check.Visitor)
             node = method.ast_node
-            visitor.begin_function_match(bound_args)
+            visitor.begin_function_match(method.name, bound_args)
             visitor.visit_function_body(node)
             return_type = visitor.end_function_match()
 

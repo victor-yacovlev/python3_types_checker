@@ -1,6 +1,7 @@
 import symtable
 import ast
 
+from types_analyzer2 import typechecks
 from types_analyzer2.special_pseudo_types import AnyOf
 from .typedefs import *
 from . import typetable
@@ -20,7 +21,9 @@ class TemporarySymbolTable:
         if name in self.values:
             return self.values[name]
         else:
-            return self.parent_table.lookup(name)
+            symbol = self.parent_table.lookup(name)
+            self.values[name] = copy.copy(symbol)
+            return self.lookup(name)
 
 
 class Visitor(ast.NodeVisitor):
@@ -119,8 +122,10 @@ class Visitor(ast.NodeVisitor):
         self.pop_symbol_table()
         self.end_function_scope()
 
-    def begin_function_match(self, arguments: dict):
-        args_table = TemporarySymbolTable(self.current_symbol_table())
+    def begin_function_match(self, function_name: str, arguments: dict):
+        current_table = self.current_symbol_table()
+        func_symtable = self.find_function_symtable(current_table, function_name)
+        args_table = TemporarySymbolTable(func_symtable)
         for arg_def, arg_type in arguments.items():
             args_table.values[arg_def.signature.name] = arg_type
         self.temporary_symtables.append(args_table)
@@ -156,6 +161,25 @@ class Visitor(ast.NodeVisitor):
                 else:
                     result = self.typetable.lookup_by_name("list")
             return result
+
+        elif isinstance(node, ast.Subscript):
+            container_type = self.resolve_expression_type(node.value)
+            slice = node.slice
+            if isinstance(slice, ast.Index):
+                provided_key_type = self.resolve_expression_type(slice.value)
+                if provided_key_type is not None:
+                    if not typechecks.type_can_be_matched(provided_key_type, container_type.keytype):
+                        raise WrongIndexTypeCompileError(node, container_type, provided_key_type)
+                value_type = container_type.valuetype
+            elif isinstance(slice, ast.Slice):
+                for key in [slice.lower, slice.upper, slice.step]:
+                    if key is not None:
+                        provided_key_type = self.resolve_expression_type(slice.lower)
+                        if provided_key_type is not None:
+                            if not typechecks.type_can_be_matched(provided_key_type, container_type.keytype):
+                                raise WrongIndexTypeCompileError(node, container_type, provided_key_type)
+                value_type = container_type
+            return value_type
 
         elif isinstance(node, ast.Dict):
             item_key_types = [self.resolve_expression_type(x) for x in node.keys]
@@ -357,13 +381,16 @@ class Visitor(ast.NodeVisitor):
             return lambda_type
 
     def assign_type_to_target(self, target, rvalue_type):
-        assert isinstance(rvalue_type, TypeDef)
-        if isinstance(target, ast.Tuple):
+        assert isinstance(rvalue_type, TypeDef) or rvalue_type is None
+        if isinstance(target, ast.Tuple) and rvalue_type is not None:
             if len(rvalue_type.tupleitems) != len(target.elts):
                 raise WrongTupleAssignmentCompileError(target.lineno, target.col_offset, len(target.elts),
                                                        len(rvalue_type.tupleitems))
             for child, rvalue_entry in zip(target.elts, rvalue_type.tupleitems):
                 self.assign_type_to_target(child, rvalue_entry)
+        elif isinstance(target, ast.Tuple) and rvalue_type is None:
+            for child in target.elts:
+                self.assign_type_to_target(child, None)
         elif isinstance(target, ast.Name):
             st = self.current_symbol_table()
             symbol = st.lookup(target.id)
@@ -383,16 +410,19 @@ class Visitor(ast.NodeVisitor):
         else:
             return self.symtable[-1]
 
-    def push_symbol_table(self, children_name: str):
-        current_table = self.symtable[-1]
+    def find_function_symtable(self, current_table, children_name):
         assert isinstance(current_table, symtable.SymbolTable)
         child_tables = current_table.get_children()
         for table in child_tables:
             table_name = table.get_name()
             if table_name == children_name:
-                self.symtable.append(table)
-                return
+                return table
         raise AttributeError("Table not found for children name: " + children_name)
+
+    def push_symbol_table(self, children_name: str):
+        current_table = self.symtable[-1]
+        self.symtable.append(self.find_function_symtable(current_table, children_name))
+
 
     def pop_symbol_table(self):
         self.symtable.pop()
