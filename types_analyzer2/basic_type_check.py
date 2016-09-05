@@ -124,7 +124,10 @@ class Visitor(ast.NodeVisitor):
 
     def begin_function_match(self, function_name: str, arguments: dict):
         current_table = self.current_symbol_table()
-        func_symtable = self.find_function_symtable(current_table, function_name)
+        if function_name:
+            func_symtable = self.find_function_symtable(current_table, function_name)
+        else:
+            func_symtable = current_table  # in case of lambda-functions
         args_table = TemporarySymbolTable(func_symtable)
         for arg_def, arg_type in arguments.items():
             args_table.values[arg_def.signature.name] = arg_type
@@ -139,7 +142,7 @@ class Visitor(ast.NodeVisitor):
         return getattr(table, "return_type", None)
 
     def visit_function_lambda(self, arguments: dict, node):
-        self.begin_function_match(arguments)
+        self.begin_function_match(None, arguments)
         rtype = self.resolve_expression_type(node)
         self.end_function_match()
         return rtype
