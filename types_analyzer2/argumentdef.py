@@ -3,9 +3,11 @@ import inspect
 
 
 class ArgumentDef:
-    def __init__(self, signature, typedef):
-        assert isinstance(signature, inspect.Parameter)
-        self.signature = signature
+    def __init__(self, signature_or_name, typedef):
+        if isinstance(signature_or_name, inspect.Parameter):
+            self.signature = signature_or_name
+        else:
+            self.signature = inspect.Parameter(signature_or_name, inspect.Parameter.VAR_POSITIONAL)
         self.typedef = typedef
         self.resolved = False
 

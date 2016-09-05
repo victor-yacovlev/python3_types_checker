@@ -383,6 +383,32 @@ class Visitor(ast.NodeVisitor):
             ## TODO specialuze lambda typed callable from lambda body
             return lambda_type
 
+        elif isinstance(node, ast.IfExp):
+            true_type = self.resolve_expression_type(node.body)
+            false_type = self.resolve_expression_type(node.orelse)
+            if true_type is not None and false_type is None:
+                return true_type
+            elif true_type is None and false_type is not None:
+                return false_type
+            elif true_type is None and false_type is None:
+                return None
+            else:
+                 return self.typetable.find_common_type_parent([true_type, false_type])
+
+        elif isinstance(node, ast.ListComp):
+            comp_args = {}
+            for generator in node.generators:
+                iter_type = self.resolve_expression_type(node.generators[0].iter).valuetype
+                if isinstance(generator.target, ast.Name):
+                    arg = ArgumentDef(generator.target.id, iter_type)
+                    comp_args[arg] = iter_type
+            self.begin_function_match("", comp_args)
+            elt_type = self.resolve_expression_type(node.elt)
+            self.end_function_match()
+            list_type = self.typetable.lookup_or_create_parametrized_list(elt_type, "list")
+            return list_type
+
+
     def assign_type_to_target(self, target, rvalue_type):
         assert isinstance(rvalue_type, TypeDef) or rvalue_type is None
         if isinstance(target, ast.Tuple) and rvalue_type is not None:
