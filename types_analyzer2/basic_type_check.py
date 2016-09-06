@@ -352,7 +352,14 @@ class Visitor(ast.NodeVisitor):
                 method_name = node.func.id
                 methods = self.functable.lookup_functions_by_name(method_name)
             if not methods:
-                raise NoSuchMethodCompileError(node.lineno, node.col_offset, instance_type, method_name)
+                # Might be class constructor?
+                instance_type = self.typetable.lookup_by_name(method_name)
+                if instance_type is not None:
+                    methods = self.find_all_instance_methods(instance_type, "__init__")
+                    if methods:
+                        args = [instance_type] + args  # prepend 'self' parameter for __init__
+            if not methods:
+                raise NoSuchMethodCompileError(node, instance_type, method_name)
             ## Try to match found methods and select first matching one
             match_error = None
             for method in methods:

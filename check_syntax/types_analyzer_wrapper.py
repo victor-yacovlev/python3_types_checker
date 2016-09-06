@@ -32,8 +32,8 @@ class Reporter:
 _reporter = Reporter()
 
 def __parse_base_types(types_table, methods_table):
-    from types_analyzer2.headers import base_types_0 as module
-    parsers.parse_module_classes(types_table, methods_table, module, "")
+    from types_analyzer2.headers import base_types_0 as module_0
+    parsers.parse_module_classes(types_table, methods_table, module_0, "")
 
 def __parse_builtins(types_table, methods_table):
     from types_analyzer2.headers import builtins_0 as module_0
@@ -109,6 +109,6 @@ if __name__ == "__main__":
                 line += ", ".join(type_annos)
             for e in _errors:
                 assert isinstance(e, type_analizer_errors.CompileError)
-                if e.lineno==line_no:
+                if e.node.lineno==line_no:
                     line += " #!!!! " + repr(e)
             print(line)

@@ -139,7 +139,8 @@ def __parse_signature(name, types_table, signature):
             assert isinstance(param, inspect.Parameter)
             annotation = param.annotation
             argument_type = __type_from_annotation(annotation, types_table)
-        arguments.append(ArgumentDef(param, argument_type))
+        arg = ArgumentDef(param, argument_type)
+        arguments.append(arg)
     assert signature.return_annotation != inspect.Signature.empty
     return_annotation = signature.return_annotation
     return_type = __type_from_annotation(return_annotation, types_table)
@@ -164,7 +165,9 @@ def parse_module_classes(types_table, methods_table, source_module, qn_prefix: s
 
     # create names in table
     for class_name, _ in source_items:
-        types_table.append(TypeDef(qn_prefix + class_name, [], None))
+        qn_name = qn_prefix + class_name
+        if not types_table.lookup_by_name(qn_name):
+            types_table.append(TypeDef(qn_prefix + class_name, [], None))
 
     # update supertypes
     for class_name, source_entry in source_items:

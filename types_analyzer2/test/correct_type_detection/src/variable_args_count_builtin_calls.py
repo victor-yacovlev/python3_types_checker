@@ -1,4 +1,3 @@
-# Built-in functions (using kwlist of kwdict arguments passing) calls
 round_1 = round(1)  # expects: int
 round_2 = round(1, 2)  # expects: int
 round_3 = round(1.2, 2)  # expects: float

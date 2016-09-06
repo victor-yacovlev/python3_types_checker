@@ -1,4 +1,3 @@
-# Built-in functions (not using higher-order funs or variable parameters list) calls
 abs_1 = abs(123)  # expects: int
 abs_2 = abs(123.34)  # expects: float
 all_1 = all([])  # expects: bool

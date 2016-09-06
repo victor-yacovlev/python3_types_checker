@@ -60,3 +60,13 @@ def setattr(object: object, name: str, value: object) -> NoneType: pass
 ## TODO def sum(iterable: _sequence, start: _nth_arg_value_type(1) = None) -> _nth_arg_value_type(1): pass
 ## TODO def vars(object: object = None) -> { str : object }: pass
 ## TODO __import__(name, globals=None, locals=None, fromlist=(), level=0)
+
+# Type constructors must be declared at last
+def bool(x: object = False) -> bool: pass
+def bytearray(source: _any_of([int, [int], bytes]) = b"") -> bytearray: pass
+def bytes(source: _any_of([int, [int], bytes]) = b"") -> bytes: pass
+def complex(real: _numeric = 0, imag: _numeric = 0) -> complex: pass
+def dict(mapping:_mapping = {}, **kwarg) -> { _nth_arg_key_type(1): _nth_arg_value_type(1) }: pass
+def int(x: _any_of([int, float]) = 0) -> int: pass
+def float(x: _any_of([int, float]) = 0) -> float: pass
+def str(object: object = "") -> str: pass

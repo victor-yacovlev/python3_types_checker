@@ -214,11 +214,18 @@ class MethodsTable:
     def __nth_arg_vt(self, method, bound_args: dict, arg_no: int, types_table):
         a, nth_arg = self.__nth_arg(method, bound_args, arg_no, types_table)
         assert isinstance(nth_arg, TypeDef)
-        if nth_arg.valuetype:
-            return a, nth_arg.valuetype
-        else:
-            assert isinstance(types_table, typetable.TypesTable)
+        if nth_arg.valuetype is None:
             return a, types_table.lookup_by_name("object")
+        return a, nth_arg.valuetype
+
+
+    def __nth_arg_kt(self, method, bound_args: dict, arg_no: int, types_table):
+        a, nth_arg = self.__nth_arg(method, bound_args, arg_no, types_table)
+        assert isinstance(nth_arg, TypeDef)
+        if nth_arg.keytype is None:
+            return a, types_table.lookup_by_name("object")
+        return a, nth_arg.keytype
+
 
     def __match_values(self, method, bound_args: dict, types_table, owner_class):
         assert isinstance(types_table, typetable.TypesTable)
@@ -249,6 +256,8 @@ class MethodsTable:
             setattr(arg, "reverse_match", reverse_match)
 
     def __match_typedef(self, method, pattern: TypeDef, value: TypeDef, bound_args, types_table, owner_class, scope):
+        if pattern is None and value is None:
+            return None
         assert isinstance(types_table, typetable.TypesTable)
         if isinstance(pattern, SelfType):
             result = owner_class
@@ -259,6 +268,8 @@ class MethodsTable:
                 _, result = self.__nth_arg(method, bound_args, pattern.arg_number, types_table)
         elif isinstance(pattern, NthArgValueType):
             _, result = self.__nth_arg_vt(method, bound_args, pattern.arg_number, types_table)
+        elif isinstance(pattern, NthArgKeyType):
+            _, result = self.__nth_arg_kt(method, bound_args, pattern.arg_number, types_table)
         elif isinstance(pattern, NthArgCallableReturnType):
             arg, result = self.__nth_arg(method, bound_args, pattern.arg_number, types_table)
             assert isinstance(result, TypedCallable)
@@ -281,11 +292,9 @@ class MethodsTable:
                 kind = sig.kind;
                 assert isinstance(kind, inspect._ParameterKind)
                 if kind in [inspect._ParameterKind.POSITIONAL_OR_KEYWORD]:
-                    arg_val_name = bound_args[arg].name
-                    kwlist.append(arg_val_name)
+                    kwlist.append(bound_args[arg])
                 elif kind in [inspect._ParameterKind.KEYWORD_ONLY]:
-                    arg_val_name = bound_args[arg].name
-                    kwdict[arg.signature.name] = arg_val_name
+                    kwdict[arg.signature.name] = bound_args[arg]
                 elif kind in [inspect._ParameterKind.VAR_POSITIONAL]:
                     kwlist += bound_args[arg]
             clazz = pattern.clazz
@@ -295,19 +304,18 @@ class MethodsTable:
             instance = clazz()
             instance.typestable = types_table
             result = instance.evaluate(kwlist, kwdict)
-            if isinstance(result, str):
-                result = types_table.lookup_by_name(result)
         elif pattern is not None:
             result = pattern
         else:
             result = value
+
 
         # Do recursively
         result = copy.copy(result)
         value = copy.copy(value)
         assert isinstance(result, TypeDef)
 
-        if result.is_parametrizable() and result.keytype is None:
+        if result.is_parametrizable() and (result.keytype is None or isinstance(result.keytype, SpecialPseudoType)):
             result.keytype = self.__match_typedef(method, result.keytype, value.keytype, bound_args, types_table,
                                                   owner_class, scope)
         if result.is_parametrizable() and result.valuetype != result and not isinstance(value, SpecialPseudoType):
@@ -390,3 +398,5 @@ class MethodsTable:
             bound_args[arg] = arg.typedef
         return_type = visitor.visit_function_lambda(bound_args, node)
         return return_type
+
+

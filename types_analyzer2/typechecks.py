@@ -22,7 +22,7 @@ def type_can_be_matched(provided, required):
     if getattr(required, "from_placeholder", False):
         return True  # value was constructed to math this type
     if isinstance(required, AnyOf):
-        return any([type_can_be_matched(x, provided) for x in required.variants])
+        return any([type_can_be_matched(provided, x) for x in required.variants])
 
     matched_by_name = provided.name == required.name
 
