@@ -286,7 +286,7 @@ class Visitor(ast.NodeVisitor):
             methods = list(self.find_all_instance_methods(left_argument_type, op_py_name)) + \
                       list(self.find_all_instance_methods(right_argument_type, alt_op_py_name))
             if not methods:
-                raise UnsupportedOperandTypesCompileError(node.lineno, node.col_offset, node.op, left_argument_type,
+                raise UnsupportedOperandTypesCompileError(node, node.op, left_argument_type,
                                                           right_argument_type)
 
             match_error = None
