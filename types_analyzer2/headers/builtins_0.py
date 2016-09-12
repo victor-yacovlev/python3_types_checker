@@ -47,7 +47,7 @@ def oct(x: int) -> str: pass
 ## TODO open(file, mode='r', buffering=1, encoding=None, errors=None, newline=None, closefd=True, opener=None)
 def ord(c: _string) -> int: pass
 ## TODO pow(x, y, [,z])
-## TODO print(*objects, sep='', end='\n', file=sys.stdout, flush=False)
+def print(*objects, sep='', end='\n', file: object = object, flush=False) -> NoneType : pass
 def range(start: int, stop: int = -1, step: int = 1) -> [int]: pass
 def repr(object: object) -> str: pass
 def reversed(seq: _sequence) -> [ _nth_arg_value_type(1) ]: pass

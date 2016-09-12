@@ -9,6 +9,7 @@ from . import functable
 from .type_analizer_errors import *
 from .funcdefs import *
 from . import parsers
+from .special_internal_types import ModuleTypeDef
 
 
 class TemporarySymbolTable:
@@ -27,9 +28,10 @@ class TemporarySymbolTable:
 
 
 class Visitor(ast.NodeVisitor):
-    def __init__(self, symtable: symtable.SymbolTable, typetable: typetable.TypesTable,
+    def __init__(self, path: list, symtable: symtable.SymbolTable, typetable: typetable.TypesTable,
                  functable: functable.MethodsTable):
         super().__init__()
+        self.path = path
         self.symtable = [symtable]
         self.typetable = typetable
         self.functable = functable
@@ -44,6 +46,20 @@ class Visitor(ast.NodeVisitor):
                 self.assign_type_to_target(target, rvalue_type)
         except CompileError as error:
             self.errors.append(error)
+
+    def visit_Import(self, node):
+        self.generic_visit(node)
+        for entry in node.names:
+            target_name = entry.asname if entry.asname else entry.name
+            st = self.current_symbol_table()
+            symbol = st.lookup(target_name)
+            symbol.typedef = self.typetable.lookup_by_name("module")
+            symbol.lineno = node.lineno
+            symbol.col_offset = node.col_offset
+            module_symbol_table = build_symbol_table_for_module(self.path, entry.name, self.typetable, self.functable)
+            if module_symbol_table:
+                setattr(symbol, "module_symbol_table", module_symbol_table)
+
 
     def visit_For(self, node):
         try:
@@ -415,6 +431,26 @@ class Visitor(ast.NodeVisitor):
             list_type = self.typetable.lookup_or_create_parametrized_list(elt_type, "list")
             return list_type
 
+        elif isinstance(node, ast.Attribute):
+            instance_type = self.resolve_expression_type(node.value)
+            if instance_type is None:
+                return None
+            # Try to find class related properties
+            attribute_name = node.attr
+            if attribute_name in instance_type.properties:
+                return instance_type.properties[attribute_name]
+            if isinstance(node.value, ast.Name) and isinstance(instance_type, ModuleTypeDef):
+                st = self.current_symbol_table()
+                symbol = st.lookup(node.value.id)
+                module_symbol_table = getattr(symbol, "module_symbol_table", None)
+                if module_symbol_table is not None:
+                    symbol = module_symbol_table.lookup(attribute_name)
+                    if symbol is not None:
+                        return getattr(symbol, "typedef", None)
+
+
+
+
 
     def assign_type_to_target(self, target, rvalue_type):
         assert isinstance(rvalue_type, TypeDef) or rvalue_type is None
@@ -475,3 +511,34 @@ class Visitor(ast.NodeVisitor):
             return self.function_scopes[-1]
         else:
             return None
+
+
+def find_module_file(path, name):
+    assert isinstance(path, list)
+    assert isinstance(name, str)
+    if name=="sys":
+        # 'sys' is a built in module
+        from .headers import sys_0
+        return sys_0.__file__
+
+
+def build_symbol_table_for_module(path, module_name, types_table, methods_table):
+    module_file_name = find_module_file(path, module_name)
+    if not module_file_name: return
+    ## TODO cache modules
+    with open(module_file_name, mode='r') as f:
+        contents = f.read()
+        table, _ = build_symbol_table_for_text(contents, path, types_table, methods_table)
+        return table
+
+
+def build_symbol_table_for_text(text, path, types_table, methods_table):
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return None, []
+    root_table = symtable.symtable(text, "<string>", "exec")
+    visitor = Visitor(path, root_table, types_table, methods_table)
+    visitor.visit(tree)
+    result = visitor.symtable[-1] if visitor.symtable else None
+    return result, visitor.errors

@@ -6,6 +6,7 @@ from check_syntax.error import Error
 import ast
 
 from types_analyzer2 import basic_type_check, typetable, functable, parsers, type_analizer_errors
+from types_analyzer2 import special_internal_types
 
 name = "TYPE-ANALYZER"
 
@@ -34,6 +35,8 @@ _reporter = Reporter()
 def __parse_base_types(types_table, methods_table):
     from types_analyzer2.headers import base_types_0 as module_0
     parsers.parse_module_classes(types_table, methods_table, module_0, "")
+    types_table.append(special_internal_types.ModuleTypeDef(types_table))
+
 
 def __parse_builtins(types_table, methods_table):
     from types_analyzer2.headers import builtins_0 as module_0
@@ -54,25 +57,10 @@ def set_source_text(text):
     assert isinstance(_reporter, Reporter)
     _reporter.reset()
     assert isinstance(text, str)
-
-    try:
-        tree = ast.parse(text)
-    except SyntaxError:
-        return  # Do nothing. There are too many errors caught by others
-
-    root_table = symtable.symtable(text, "<string>", "exec")
-    bacic_type_check_transformer = basic_type_check.Visitor(root_table, BASE_TYPES, BASE_METHODS)
-    bacic_type_check_transformer.visit(tree)
     global _built_symboltable
     global _errors
-    _built_symboltable = bacic_type_check_transformer.symtable[-1]
-    _errors = bacic_type_check_transformer.errors
-    # Old code by Oleg
-    # initial_checking.fill_initial()
-    # # visitor = initial_checking.ImportModuleVisitor()
-    # # visitor.visit(tree)
-    # node_visitor = initial_checking.AnalysisNodeVisitor()
-    # node_visitor.visit(tree)
+    path = sys.path
+    _built_symboltable, _errors = basic_type_check.build_symbol_table_for_text(text, path, BASE_TYPES, BASE_METHODS)
 
 
 def get_errors():

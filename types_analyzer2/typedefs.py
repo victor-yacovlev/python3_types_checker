@@ -17,6 +17,7 @@ class TypeDef:
         self.parent_table = None
         self.tupleitems = tupleitems
         self.parametrizable = False
+        self.properties = {}
 
     def copy(self):
         if not self.parametrizable:
@@ -38,6 +39,7 @@ class TypeDef:
         result = TypeDef(self.name, supertypes, keytype, valuetype, tupleitems)
         result.parametrizable = self.parametrizable
         result.parent_table = self.parent_table
+        result.properties = self.properties
         if result.keytype == self:
             result.keytype = result
         if result.valuetype == self:
