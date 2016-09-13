@@ -60,7 +60,7 @@ def set_source_text(text):
     global _built_symboltable
     global _errors
     path = sys.path
-    _built_symboltable, _errors = basic_type_check.build_symbol_table_for_text(text, path, BASE_TYPES, BASE_METHODS)
+    _built_symboltable, _errors = basic_type_check.build_symbol_table_for_text(text, path, "", BASE_TYPES, BASE_METHODS)
 
 
 def get_errors():

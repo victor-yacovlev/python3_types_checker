@@ -1,5 +1,7 @@
 import symtable
 import ast
+import os
+import types
 
 from types_analyzer2 import typechecks
 from types_analyzer2.special_pseudo_types import AnyOf
@@ -28,7 +30,8 @@ class TemporarySymbolTable:
 
 
 class Visitor(ast.NodeVisitor):
-    def __init__(self, path: list, symtable: symtable.SymbolTable, typetable: typetable.TypesTable,
+
+    def __init__(self, path: list, namespace: str, symtable: symtable.SymbolTable, typetable: typetable.TypesTable,
                  functable: functable.MethodsTable):
         super().__init__()
         self.path = path
@@ -38,6 +41,7 @@ class Visitor(ast.NodeVisitor):
         self.function_scopes = []
         self.errors = []
         self.temporary_symtables = []
+        self.namespace = namespace
 
     def visit_Assign(self, node):
         try:
@@ -56,7 +60,7 @@ class Visitor(ast.NodeVisitor):
             symbol.typedef = self.typetable.lookup_by_name("module")
             symbol.lineno = node.lineno
             symbol.col_offset = node.col_offset
-            module_symbol_table = build_symbol_table_for_module(self.path, entry.name, self.typetable, self.functable)
+            module_symbol_table = build_symbol_table_for_module(self.path, target_name, entry.name,  self.typetable, self.functable)
             if module_symbol_table:
                 setattr(symbol, "module_symbol_table", module_symbol_table)
 
@@ -64,10 +68,8 @@ class Visitor(ast.NodeVisitor):
     def visit_For(self, node):
         try:
             iterable_type = self.resolve_expression_type(node.iter)
-            assert isinstance(iterable_type, TypeDef)
-            iterable_value_type = iterable_type.valuetype
-            if iterable_value_type is not None:
-                self.assign_type_to_target(node.target, iterable_value_type)
+            iterable_value_type = iterable_type.valuetype if isinstance(iterable_type, TypeDef) else None
+            self.assign_type_to_target(node.target, iterable_value_type)
         except CompileError as error:
             self.errors.append(error)
         super().generic_visit(node)
@@ -132,7 +134,7 @@ class Visitor(ast.NodeVisitor):
         method = parsers.parse_ast_function_def(node, self.functable, self.typetable, self.current_symbol_table())
         method.ast_visitor = self
         method.ast_node = node.body
-        self.functable.append("", method)
+        self.functable.append(self.namespace, method)
         self.begin_function_scope(method)
         ast.NodeVisitor.generic_visit(self, node)
         self.pop_symbol_table()
@@ -289,6 +291,17 @@ class Visitor(ast.NodeVisitor):
             left_argument_type = self.resolve_expression_type(node.left)
             right_argument_type = self.resolve_expression_type(node.right)
             if left_argument_type is None or right_argument_type is None:
+                # Try to detect type by operator
+                op = node.op
+                if isinstance(op, ast.BitAnd) or isinstance(op, ast.BitOr) or isinstance(op, ast.BitXor):
+                    # Bitwise operations can apply to integer arguments,
+                    # so it's possible to specify their types
+                    int_type = self.typetable.lookup_by_name("int")
+                    args = [(left_argument_type, node.left), (right_argument_type, node.right)]
+                    for arg_type, arg_node in args:
+                        if arg_type is None and isinstance(arg_node, ast.Name):
+                            self.assign_type_to_target(arg_node, int_type)
+                    return int_type   # Bitwise operations rtype is always int
                 return None  # in case of non-annotated item in expression
 
             ## If there was an error while resolving subexpressions,
@@ -341,6 +354,14 @@ class Visitor(ast.NodeVisitor):
             if methods:
                 assert isinstance(methods[0], MethodDef)
                 return methods[0].to_callable_type()
+            ## standard symtable implementation does not handle typedefs, so check for parent tables
+            if len(self.symtable) > 1:
+                for i in range(len(self.symtable)-2,-1,-1):
+                    table = self.symtable[i]
+                    symbol = table.lookup(node.id)
+                    if hasattr(symbol, "typedef"):
+                        symbol_type = symbol.typedef
+                        return symbol_type
 
         elif isinstance(node, ast.NameConstant):
             value = node.value
@@ -360,9 +381,16 @@ class Visitor(ast.NodeVisitor):
                 if not instance_type:
                     return None
                 assert isinstance(instance_type, TypeDef)
-                args = [instance_type] + args  ## prepend 'self' parameter to args list
-                method_name = node.func.attr
-                methods = self.find_all_instance_methods(instance_type, method_name)
+                if isinstance(instance_type, ModuleTypeDef):
+                    ## module function
+                    namespace = node.func.value.id
+                    fully_qualified_name = namespace + "." + node.func.attr
+                    methods = self.functable.lookup_functions_by_name(fully_qualified_name)
+                else:
+                    ## class method
+                    args = [instance_type] + args  ## prepend 'self' parameter to args list
+                    method_name = node.func.attr
+                    methods = self.find_all_instance_methods(instance_type, method_name)
             else:
                 instance_type = None
                 method_name = node.func.id
@@ -469,6 +497,12 @@ class Visitor(ast.NodeVisitor):
             symbol.typedef = rvalue_type
             symbol.lineno = target.lineno
             symbol.col_offset = target.col_offset
+            # check for unresolved function argument type
+            method = self.current_function_scope()
+            if method:
+                for arg in method.arguments:
+                    if arg.typedef is None and arg.signature.name==target.id:
+                        arg.typedef = rvalue_type
 
     def find_all_instance_methods(self, clazz: TypeDef, name: str):
         result = self.functable.lookup_methods_by_fully_qualified_name(clazz.name, name)
@@ -500,7 +534,7 @@ class Visitor(ast.NodeVisitor):
         self.symtable.pop()
 
     def begin_function_scope(self, method: MethodDef):
-        self.functable.append("", method)
+        self.functable.append(self.namespace, method)
         self.function_scopes.append(method)
 
     def end_function_scope(self):
@@ -520,25 +554,29 @@ def find_module_file(path, name):
         # 'sys' is a built in module
         from .headers import sys_0
         return sys_0.__file__
+    for pe in path:
+        full_path = pe + os.path.sep + name + ".py"
+        if os.path.exists(full_path):
+            return full_path
 
 
-def build_symbol_table_for_module(path, module_name, types_table, methods_table):
+def build_symbol_table_for_module(path, namespace, module_name, types_table, methods_table):
     module_file_name = find_module_file(path, module_name)
     if not module_file_name: return
     ## TODO cache modules
     with open(module_file_name, mode='r') as f:
         contents = f.read()
-        table, _ = build_symbol_table_for_text(contents, path, types_table, methods_table)
+        table, _ = build_symbol_table_for_text(contents, path, namespace, types_table, methods_table)
         return table
 
 
-def build_symbol_table_for_text(text, path, types_table, methods_table):
+def build_symbol_table_for_text(text, path, namespace, types_table, methods_table):
     try:
         tree = ast.parse(text)
     except SyntaxError:
         return None, []
     root_table = symtable.symtable(text, "<string>", "exec")
-    visitor = Visitor(path, root_table, types_table, methods_table)
+    visitor = Visitor(path, namespace, root_table, types_table, methods_table)
     visitor.visit(tree)
     result = visitor.symtable[-1] if visitor.symtable else None
     return result, visitor.errors
