@@ -3,6 +3,8 @@ import ast
 import os
 import types
 
+import sys
+
 from types_analyzer2 import typechecks
 from types_analyzer2.special_pseudo_types import AnyOf
 from .typedefs import *
@@ -51,8 +53,29 @@ class Visitor(ast.NodeVisitor):
         except CompileError as error:
             self.errors.append(error)
 
+    def visit_If(self, node):
+        ## Mark all children as conditional
+        for item in node.body:
+            self.mark_as_conditional(item)
+        for item in node.orelse:
+            self.mark_as_conditional(item)
+        self.generic_visit(node)
+
+    def mark_as_conditional(self, node):
+        setattr(node, "conditional", True)
+        for field, value in ast.iter_fields(node):
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, ast.AST):
+                        self.mark_as_conditional(item)
+            elif isinstance(value, ast.AST):
+                self.mark_as_conditional(value)
+
     def visit_Import(self, node):
         self.generic_visit(node)
+        conditional = getattr(node, "conditional", False)
+        if conditional:
+            return  ## Too exotic case
         for entry in node.names:
             target_name = entry.asname if entry.asname else entry.name
             st = self.current_symbol_table()
@@ -188,10 +211,10 @@ class Visitor(ast.NodeVisitor):
             slice = node.slice
             if isinstance(slice, ast.Index):
                 provided_key_type = self.resolve_expression_type(slice.value)
-                if provided_key_type is not None:
+                if provided_key_type is not None and container_type is not None and container_type.keytype is not None:
                     if not typechecks.type_can_be_matched(provided_key_type, container_type.keytype):
                         raise WrongIndexTypeCompileError(node, container_type, provided_key_type)
-                value_type = container_type.valuetype
+                value_type = container_type.valuetype if container_type else None
             elif isinstance(slice, ast.Slice):
                 for key in [slice.lower, slice.upper, slice.step]:
                     if key is not None:
@@ -257,7 +280,10 @@ class Visitor(ast.NodeVisitor):
 
         elif isinstance(node, ast.Compare):
             current_type = self.resolve_expression_type(node.left)
-            assert isinstance(current_type, typetable.TypeDef)
+            assert isinstance(current_type, typetable.TypeDef) or current_type is None
+            if current_type is None:
+                bool_type = self.typetable.lookup_by_name("bool")
+                return bool_type
             for op, next_operand in zip(node.ops, node.comparators):
                 op_name = type(op).__name__
                 op_py_name = "__" + op_name.lower() + "__"
@@ -358,7 +384,10 @@ class Visitor(ast.NodeVisitor):
             if len(self.symtable) > 1:
                 for i in range(len(self.symtable)-2,-1,-1):
                     table = self.symtable[i]
-                    symbol = table.lookup(node.id)
+                    try:
+                        symbol = table.lookup(node.id)
+                    except KeyError:
+                        return None
                     if hasattr(symbol, "typedef"):
                         symbol_type = symbol.typedef
                         return symbol_type
@@ -413,6 +442,11 @@ class Visitor(ast.NodeVisitor):
                 except MatchError as e:
                     return_type = None
                     if not match_error: match_error = e  ## display first match error
+                # except:
+                #     ## something gone wrong, so it can not resolve type
+                #     match_error = None
+                #     return_type = None
+                #     break
                 if return_type is not None:
                     match_error = None
                     break
@@ -551,7 +585,7 @@ def find_module_file(path, name):
     assert isinstance(path, list)
     assert isinstance(name, str)
     if name=="sys":
-        # 'sys' is a built in module
+        # 'sys' is a built in named module
         from .headers import sys_0
         return sys_0.__file__
     for pe in path:
@@ -560,13 +594,29 @@ def find_module_file(path, name):
             return full_path
 
 
+def is_standard_module(path, file_name, module_name):
+    assert isinstance(path, list)
+    assert isinstance(file_name, str)
+    assert isinstance(module_name, str)
+    if module_name=="sys": return True
+    prefix = sys.prefix
+    if file_name.startswith(prefix):
+        return True
+    return False
+
+__modules_cache = {}
+
 def build_symbol_table_for_module(path, namespace, module_name, types_table, methods_table):
+    global __modules_cache
     module_file_name = find_module_file(path, module_name)
     if not module_file_name: return
-    ## TODO cache modules
+    if module_name in __modules_cache and is_standard_module(path, module_file_name, module_name):
+        return __modules_cache[module_name]
     with open(module_file_name, mode='r') as f:
         contents = f.read()
         table, _ = build_symbol_table_for_text(contents, path, namespace, types_table, methods_table)
+        if is_standard_module(path, module_file_name, module_name) and module_name not in __modules_cache:
+            __modules_cache[module_name] = table
         return table
 
 

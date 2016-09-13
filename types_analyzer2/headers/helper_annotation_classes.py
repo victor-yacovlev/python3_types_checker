@@ -46,7 +46,7 @@ class _dict_from_iterable_constructor_type(base_types_0._scriptable_match):
 
 class _list_from_iterable_constructor_type(base_types_0._scriptable_match):
     def evaluate(self, kwlist_args, kwdict_args):
-        if len(kwlist_args)==0 or kwlist_args[0].valuetype is None:
+        if len(kwlist_args)==0 or kwlist_args[0] is None or kwlist_args[0].valuetype is None:
             return self.typestable.lookup_by_name("list")
         else:
             vt = kwlist_args[0].valuetype

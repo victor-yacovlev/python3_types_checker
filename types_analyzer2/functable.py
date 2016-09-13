@@ -94,8 +94,7 @@ class MethodsTable:
             if kind == inspect._ParameterKind.VAR_POSITIONAL:
                 allow_kwlist = True
                 kwlist_arg = arg
-            if provided_arg:
-                result[arg] = copy.copy(provided_arg)
+            result[arg] = copy.copy(provided_arg) if provided_arg else None
         if kwdict and not allow_kwdict:
             raise MethodDoesNotAllowKwdictMatchError(method, kwdict.keys())
         if args and not allow_kwlist:
@@ -134,14 +133,14 @@ class MethodsTable:
             assert isinstance(method_arg, ArgumentDef)
             provided_type = bound_args[method_arg]
             if method_arg.signature.kind != inspect._ParameterKind.VAR_POSITIONAL:
-                assert isinstance(provided_type, TypeDef)
+                assert isinstance(provided_type, TypeDef) or provided_type is None
                 required_type = method_arg.typedef
                 reverse_match = getattr(method_arg, "reverse_match", False)
                 if reverse_match:  # in case if required type constructed after provided
                     required_type, provided_type = provided_type, required_type
                     required_type = self.__match_typedef(method, provided_type, required_type, bound_args, types_table,
                                                          owner_class, method)
-                if not type_can_be_matched(provided_type, required_type):
+                if provided_type and not type_can_be_matched(provided_type, required_type):
                     raise TypeMismatchMatchError(method, required_type, provided_type)
             else:
                 assert isinstance(provided_type, list)
@@ -202,7 +201,7 @@ class MethodsTable:
         for arg, val in bound_args.items():
             if arg.arg_number == arg_no:
                 assert isinstance(arg, ArgumentDef)
-                assert isinstance(val, TypeDef)
+                assert isinstance(val, TypeDef) or val is None
                 return arg, val
         assert isinstance(method, MethodDef)
         arg = method.arguments[arg_no - 1]
@@ -272,8 +271,9 @@ class MethodsTable:
             _, result = self.__nth_arg_kt(method, bound_args, pattern.arg_number, types_table)
         elif isinstance(pattern, NthArgCallableReturnType):
             arg, result = self.__nth_arg(method, bound_args, pattern.arg_number, types_table)
-            assert isinstance(result, TypedCallable)
+            assert isinstance(result, TypedCallable) or result is None
             reverse_match = getattr(arg, "reverse_match", False)
+            if not result: return None
             if reverse_match and isinstance(arg.typedef, TypedCallable):
                 result = arg.typedef.return_type
             else:
@@ -315,7 +315,7 @@ class MethodsTable:
         value = copy.copy(value)
         assert isinstance(result, TypeDef)
 
-        if result.is_parametrizable() and (result.keytype is None or isinstance(result.keytype, SpecialPseudoType)):
+        if result.is_parametrizable() and (result.keytype is None or isinstance(result.keytype, SpecialPseudoType)) and value:
             result.keytype = self.__match_typedef(method, result.keytype, value.keytype, bound_args, types_table,
                                                   owner_class, scope)
         if result.is_parametrizable() and result.valuetype != result and not isinstance(value, SpecialPseudoType):

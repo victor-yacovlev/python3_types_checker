@@ -13,3 +13,4 @@ ps1 = str()
 ps2 = str()
 version = str()
 api_version = int()
+def exc_info() -> tuple: pass
