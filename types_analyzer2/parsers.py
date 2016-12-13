@@ -2,9 +2,9 @@ import os
 import inspect
 import symtable
 
+from . import typetable
 from . import funcdefs
 from .functable import MethodsTable
-from . import typetable
 from . import functable
 from .typedefs import *
 from .funcdefs import *
